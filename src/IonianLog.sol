@@ -14,7 +14,7 @@ interface IonianStructs {
         uint256[] streamIds;
         bytes data;
         bytes32 dataRoot;
-        uint256 numChunks;
+        uint256 sizeBytes;
     }
 
     struct Stream {
@@ -26,7 +26,13 @@ interface IonianEvents {
     event NewStream(uint256 id);
 }
 
-contract IonianLog is IonianStructs, IonianEvents {
+interface IonianErrors {
+    error TooManyStreams();
+
+    error Unauthorized();
+}
+
+contract IonianLog is IonianStructs, IonianEvents, IonianErrors {
     // ------------------ constants ------------------
 
     uint256 public constant MAX_STREAMS_PER_LOG = 10;
@@ -45,47 +51,29 @@ contract IonianLog is IonianStructs, IonianEvents {
 
     // ------------------ log management ------------------
 
-    function appendLog(
-        bytes calldata data,
-        bytes32 dataRoot,
-        uint256 numChunks
-    ) external {
-        require(
-            data.length == 0 || dataRoot == bytes32(0),
-            "Must specify one of data and dataRoot"
-        );
-
-        LogEntry memory entry;
-        entry.data = data;
-        entry.dataRoot = dataRoot;
-        entry.numChunks = numChunks;
-
-        log.push(entry);
+    function appendLog(bytes32 dataRoot, uint256 sizeBytes) external {
+        log.push(LogEntry(new uint256[](0), bytes(""), dataRoot, sizeBytes));
     }
 
     function appendLog(
-        uint256[] calldata streamIds,
-        bytes calldata data,
         bytes32 dataRoot,
-        uint256 numChunks
+        uint256 sizeBytes,
+        uint256[] calldata streamIds
     ) external {
-        require(
-            data.length == 0 || dataRoot == bytes32(0),
-            "Must specify one of data and dataRoot"
-        );
+        log.push(LogEntry(streamIds, bytes(""), dataRoot, sizeBytes));
+        checkStreams(streamIds);
+    }
 
-        log.push(LogEntry(streamIds, data, dataRoot, numChunks));
+    function appendLogWithData(bytes calldata data) external {
+        log.push(LogEntry(new uint256[](0), data, bytes32(0), 0));
+    }
 
-        require(streamIds.length <= MAX_STREAMS_PER_LOG, "Error");
-
-        for (uint256 ii = 0; ii < streamIds.length; ii++) {
-            uint256 streamId = streamIds[ii];
-            Stream memory stream = streams[streamId];
-
-            if (stream.ac != AccessControl(address(0))) {
-                require(stream.ac.canAppend(msg.sender), "Unauthorized");
-            }
-        }
+    function appendLogWithData(
+        bytes calldata data,
+        uint256[] calldata streamIds
+    ) external {
+        log.push(LogEntry(streamIds, data, bytes32(0), 0));
+        checkStreams(streamIds);
     }
 
     // ------------------ stream management ------------------
@@ -120,6 +108,25 @@ contract IonianLog is IonianStructs, IonianEvents {
 
         for (uint256 ii = offset; ii < endExclusive; ++ii) {
             entries[ii - offset] = log[ii];
+        }
+    }
+
+    // ------------------ internal logic ------------------
+
+    function checkStreams(uint256[] calldata streamIds) private {
+        if (streamIds.length > MAX_STREAMS_PER_LOG) {
+            revert TooManyStreams();
+        }
+
+        for (uint256 ii = 0; ii < streamIds.length; ii++) {
+            uint256 streamId = streamIds[ii];
+            Stream memory stream = streams[streamId];
+
+            if (stream.ac != AccessControl(address(0))) {
+                if (!stream.ac.canAppend(msg.sender)) {
+                    revert Unauthorized();
+                }
+            }
         }
     }
 }

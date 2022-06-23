@@ -6,7 +6,7 @@ import {Utilities} from "./utils/Utilities.sol";
 import {console} from "./utils/Console.sol";
 import {Vm} from "forge-std/Vm.sol";
 
-import {IonianLog, AccessControl, IonianStructs, IonianEvents} from "../IonianLog.sol";
+import {IonianLog, AccessControl, IonianStructs, IonianEvents, IonianErrors} from "../IonianLog.sol";
 
 contract SimpleAccessControl is AccessControl {
     mapping(address => bool) public approved;
@@ -24,7 +24,7 @@ contract SimpleAccessControl is AccessControl {
     }
 }
 
-contract BaseSetup is DSTest, IonianStructs, IonianEvents {
+contract BaseSetup is DSTest, IonianStructs, IonianEvents, IonianErrors {
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
 
     Utilities internal utils;
@@ -77,11 +77,8 @@ contract SimpleAppend is BaseSetup {
         emit NewStream(1);
         ionian.createStream(AccessControl(address(0)));
 
-        ionian.appendLog(stream1only, "", bytes32("root1"), 32);
-        ionian.appendLog(stream1only, "data1", bytes32(""), 32);
-
-        vm.expectRevert("Must specify one of data and dataRoot");
-        ionian.appendLog(stream1only, "data1", bytes32("root1"), 32);
+        ionian.appendLog(bytes32("root1"), 32);
+        ionian.appendLogWithData("data1");
 
         vm.stopPrank();
     }
@@ -96,20 +93,20 @@ contract AppendWithAccessControl is BaseSetup {
         // new stream by Alice
         vm.startPrank(alice);
         ionian.createStream(AccessControl(address(0)));
-        ionian.appendLog(stream1only, "", bytes32("root1"), 32);
+        ionian.appendLog(bytes32("root1"), 32, stream1only);
         vm.stopPrank();
 
         // new stream by Bob
         vm.startPrank(bob);
         SimpleAccessControl ac = new SimpleAccessControl();
         ionian.createStream(ac);
-        ionian.appendLog(stream2only, "", bytes32("root2"), 32);
+        ionian.appendLog(bytes32("root2"), 32, stream2only);
         vm.stopPrank();
 
         // access denied
         vm.startPrank(alice);
-        vm.expectRevert("Unauthorized");
-        ionian.appendLog(streams1and2, "", bytes32("root3"), 32);
+        vm.expectRevert(Unauthorized.selector);
+        ionian.appendLog(bytes32("root3"), 32, streams1and2);
         vm.stopPrank();
 
         // grant access
@@ -117,6 +114,6 @@ contract AppendWithAccessControl is BaseSetup {
         ac.approve(alice);
 
         vm.prank(alice);
-        ionian.appendLog(streams1and2, "", bytes32("root3"), 32);
+        ionian.appendLog(bytes32("root3"), 32, streams1and2);
     }
 }
