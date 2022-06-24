@@ -115,5 +115,11 @@ contract AppendWithAccessControl is BaseSetup {
 
         vm.prank(alice);
         ionian.appendLog(bytes32("root3"), 32, streams1and2);
+
+        LogEntry[] memory entries = ionian.getLogEntries(0, 100);
+        assertEq(entries.length, 3);
+        assertEq(entries[0].dataRoot, bytes32("root1"));
+        assertEq(entries[1].dataRoot, bytes32("root2"));
+        assertEq(entries[2].dataRoot, bytes32("root3"));
     }
 }

@@ -35,7 +35,7 @@ interface IonianErrors {
 contract IonianLog is IonianStructs, IonianEvents, IonianErrors {
     // ------------------ constants ------------------
 
-    uint256 public constant MAX_STREAMS_PER_LOG = 10;
+    uint256 public constant MAX_STREAMS_PER_LOG_ENTRY = 10;
 
     // ------------------ state variables ------------------
 
@@ -86,7 +86,7 @@ contract IonianLog is IonianStructs, IonianEvents, IonianErrors {
 
     // ------------------ query interface ------------------
 
-    function numLogs() external view returns (uint256) {
+    function numLogEntries() external view returns (uint256) {
         return log.length;
     }
 
@@ -94,7 +94,7 @@ contract IonianLog is IonianStructs, IonianEvents, IonianErrors {
         return streams.length;
     }
 
-    function getLogs(uint256 offset, uint256 limit)
+    function getLogEntries(uint256 offset, uint256 limit)
         external
         view
         returns (LogEntry[] memory entries)
@@ -114,7 +114,7 @@ contract IonianLog is IonianStructs, IonianEvents, IonianErrors {
     // ------------------ internal logic ------------------
 
     function checkStreams(uint256[] calldata streamIds) private {
-        if (streamIds.length > MAX_STREAMS_PER_LOG) {
+        if (streamIds.length > MAX_STREAMS_PER_LOG_ENTRY) {
             revert TooManyStreams();
         }
 
